@@ -1,0 +1,18 @@
+<html>
+<head>
+	<title>broccoli-ractive</title>
+</head>
+
+<body>
+	<main></main>
+
+	<script src='require.js'></script>
+	<script>
+		require([ 'components/demo' ], function ( Demo ) {
+			var ractive = new Demo({
+				el: 'main'
+			});
+		});
+	</script>
+</body>
+</html>
