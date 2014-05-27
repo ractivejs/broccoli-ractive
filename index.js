@@ -7,6 +7,8 @@ var Promise = require( 'es6-promise' ).Promise,
 	tosource = require( 'tosource' ),
 	CleanCSS = require( 'clean-css' ),
 
+	fileExtension = /\.[a-zA-Z]+$/,
+
 	promisify,
 	glob,
 	mkdirp,
@@ -99,7 +101,7 @@ RactiveCompiler.prototype = {
 
 					relativePath = path.relative( srcDir, componentPath );
 
-					outputPath = path.join( destDir, self.destDir, relativePath.replace( /\.[a-zA-Z]+$/, '.js' ) );
+					outputPath = path.join( destDir, self.destDir, relativePath.replace( fileExtension, '.js' ) );
 					outputFolder = path.join( outputPath, '..' );
 
 					return createComponent( componentPath ).then( writeComponent );
@@ -116,18 +118,14 @@ RactiveCompiler.prototype = {
 		});
 
 		function createComponent ( componentPath ) {
-			return new Promise( function ( fulfil, reject ) {
-				fs.readFile( componentPath, function ( err, result ) {
-					var source, parsed, built;
+			return readFile( componentPath ).then( function ( result ) {
+				var source, parsed, built;
 
-					if ( err ) throw err;
+				source = result.toString();
+				parsed = rcu.parse( source );
+				built = builders.amd( parsed );
 
-					source = result.toString();
-					parsed = rcu.parse( source );
-					built = builders.amd( parsed );
-
-					fulfil( built );
-				});
+				return built;
 			});
 		}
 	}
@@ -165,7 +163,7 @@ builders.amd = function ( definition, imported ) {
 
 
 	function getImportPath ( imported ) {
-		return '\t"' + imported.href + '"';
+		return '\t"' + imported.href.replace( fileExtension, '' ) + '"';
 	}
 
 	function getImportName ( imported, i ) {
@@ -177,22 +175,13 @@ builders.amd = function ( definition, imported ) {
 	}
 
 	function stringify ( key ) {
-		if ( /^[a-zA-Z$_][a-zA-Z$_0-9]*$/test( key ) ) {
+		if ( /^[a-zA-Z$_][a-zA-Z$_0-9]*$/.test( key ) ) {
 			return key;
 		}
 
 		return JSON.stringify( key );
 	}
 };
-
-function globPromise( pattern ) {
-	return new Promise( function ( fulfil, reject ) {
-		glob( pattern, function ( err, result ) {
-			if ( err ) return reject( err );
-			fulfil( result );
-		});
-	});
-}
 
 
 module.exports = RactiveCompiler;
