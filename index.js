@@ -141,11 +141,12 @@ builders.amd = function ( definition, imported ) {
 		'var __options__ = {\n' +
 		'	template: ' + tosource( definition.template ) + ',\n' +
 		( definition.css ?
-		'    css:' + JSON.stringify( new CleanCSS().minify( definition.css ) ) + ',\n' : '' ) +
+		'	css:' + JSON.stringify( new CleanCSS().minify( definition.css ) ) + ',\n' : '' ) +
 		( definition.imports.length ?
-		'    components:{' + definition.imports.map( getImportKeyValuePair ).join( ',\n' ) + '}\n' : '' ) +
-		'  },\n' +
-		'  component={};';
+		'	components:{' + definition.imports.map( getImportKeyValuePair ).join( ',\n' ) + '}\n' : '' ) +
+		'},\n' +
+		'component={},\n' +
+		'__prop__;';
 
 	if ( definition.script ) {
 		builtModule += '\n' + definition.script + '\n' +
