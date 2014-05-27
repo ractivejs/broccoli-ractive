@@ -142,7 +142,7 @@ RactiveCompiler.prototype = {
 createBody = function ( definition ) {
 	var body = '' +
 		'var __options__ = {\n' +
-		'	template: ' + tosource( definition.template ) + ',\n' +
+		'	template: ' + tosource( definition.template, null, '' ) + ',\n' +
 		( definition.css ?
 		'	css:' + JSON.stringify( new CleanCSS().minify( definition.css ) ) + ',\n' : '' ) +
 		( definition.imports.length ?
@@ -205,7 +205,7 @@ builders.cjs = function ( definition ) {
 	var requireStatements, builtModule;
 
 	requireStatements = definition.imports.map( function ( imported, i ) {
-		return '__import' + i + '__ = require(\'' + imported.href + '\')';
+		return '__import' + i + '__ = require(\'' + imported.href.replace( fileExtension, '' ) + '\')';
 	});
 
 	requireStatements.unshift( 'Ractive = require(\'ractive\')' );
@@ -213,6 +213,22 @@ builders.cjs = function ( definition ) {
 	builtModule = 'var ' + requireStatements.join( ',\n\t' ) + ';\n\n' +
 	createBody( definition ) +
 	'module.exports = __export__;';
+
+	return builtModule;
+};
+
+builders.es6 = function ( definition ) {
+	var importStatements, builtModule;
+
+	importStatements = definition.imports.map( function ( imported, i ) {
+		return 'import __import' + i + '__ from \'' + imported.href.replace( fileExtension, '' ) + '\';';
+	});
+
+	importStatements.unshift( 'import Ractive from \'ractive\';' );
+
+	builtModule = importStatements.join( '\n\t' ) + ';\n\n' +
+	createBody( definition ) +
+	'export default __export__;';
 
 	return builtModule;
 };
