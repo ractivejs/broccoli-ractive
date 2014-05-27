@@ -1,6 +1,13 @@
 <html>
 <head>
 	<title>broccoli-ractive</title>
+
+	<style>
+		main {
+			width: 200px;
+			height: 200px;
+		}
+	</style>
 </head>
 
 <body>
@@ -8,8 +15,8 @@
 
 	<script src='require.js'></script>
 	<script>
-		require([ 'components/demo' ], function ( Demo ) {
-			var ractive = new Demo({
+		require([ 'components/clock' ], function ( Clock ) {
+			var ractive = new Clock({
 				el: 'main'
 			});
 		});

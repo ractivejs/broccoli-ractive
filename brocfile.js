@@ -4,7 +4,7 @@ var pick = require( 'broccoli-static-compiler' ),
 
 var staticFiles = pick( 'example', {
 	srcDir: '/',
-	files: [ 'index.html', 'require.js' ],
+	files: [ 'index.html', 'require.js', 'ractive.js' ],
 	destDir: '/'
 });
 

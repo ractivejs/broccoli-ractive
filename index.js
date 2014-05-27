@@ -1,16 +1,46 @@
-var Writer = require( 'broccoli-writer' ),
-	Promise = require( 'es6-promise' ).Promise,
+var Promise = require( 'es6-promise' ).Promise,
+	quickTemp = require( 'quick-temp' ),
 	Ractive = require( 'ractive' ),
 	rcu = require( 'rcu' ),
 	fs = require( 'fs' ),
 	path = require( 'path' ),
-	mkdirp = require( 'mkdirp' ),
 	tosource = require( 'tosource' ),
-	glob = require( 'glob' );
+	CleanCSS = require( 'clean-css' ),
+
+	promisify,
+	glob,
+	mkdirp,
+	readFile,
+	writeFile;
 
 rcu.init( Ractive );
 
-var RactiveCompiler = function ( inputTree, options ) {
+var RactiveCompiler, templates = {}, builders = {};
+
+promisify = (function ( slice ) {
+	return function ( fn, context ) {
+		return function () {
+			var args = slice.call( arguments );
+
+			return new Promise( function ( fulfil, reject ) {
+				var callback = function ( err ) {
+					if ( err ) return reject( err );
+					fulfil.apply( null, slice.call( arguments, 1 ) );
+				};
+
+				args.push( callback );
+				fn.apply( context, args );
+			});
+		};
+	};
+}( [].slice ));
+
+glob = promisify( require( 'glob' ) );
+mkdirp = promisify( require( 'mkdirp' ) );
+readFile = promisify( fs.readFile, fs );
+writeFile = promisify( fs.writeFile, fs );
+
+RactiveCompiler = function ( inputTree, options ) {
 	var key;
 
 	if ( !( this instanceof RactiveCompiler ) ) {
@@ -30,54 +60,139 @@ var RactiveCompiler = function ( inputTree, options ) {
 	}
 };
 
-RactiveCompiler.prototype = Object.create( Writer.prototype );
-RactiveCompiler.prototype.constructor = RactiveCompiler;
+RactiveCompiler.prototype = {
+	constructor: RactiveCompiler,
 
-RactiveCompiler.prototype.write = function ( readTree, destDir ) {
-	var self = this;
+	read: function (readTree) {
+		var self = this;
 
-	return new Promise( function ( fulfil, reject ) {
-		readTree( self.inputTree ).then( function ( srcDir ) {
-			Promise.all( self.files.map( function ( pattern ) {
-				return new Promise( function ( fulfil, reject ) {
-					glob( path.join( srcDir, pattern ), function ( err, result ) {
-						if ( err ) throw err;
+		quickTemp.makeOrRemake( this, 'ractiveCompiler' );
 
-						return Promise.all( result.map( createComponent ) );
-					});
-				});
-			}) ).then( fulfil );
+		return this.write( readTree, this.ractiveCompiler ).then( function () {
+			return self.ractiveCompiler;
 		});
-	});
+	},
 
-	function createComponent ( componentPath ) {
-		return new Promise( function ( fulfil, reject ) {
-			fs.readFile( componentPath, function ( err, result ) {
-				var source, parsed;
+	cleanup: function () {
+		quickTemp.remove(this, 'ractive-compiler')
+	},
 
-				if ( err ) throw err;
+	write: function ( readTree, destDir ) {
+		var self = this;
 
-				source = result.toString();
-				parsed = rcu.parse( source );
+		return readTree( self.inputTree ).then( function ( srcDir ) {
 
-				console.log( 'parsed', parsed );
-
-				Promise.all( parsed.imports.map( function ( toImport ) {
-					var importPath = rcu.resolve( toImport.href, componentPath );
-					return {
-						name: toImport.name,
-						definition: createComponent( importPath )
-					};
-				}) ).then( function ( imported ) {
-
-					// TODO!
-
-				});
-
-				fulfil();
+			// glob all input file patterns, and create components from them
+			var promises = self.files.map( resolvePattern ).map( function ( pattern ) {
+				return glob( pattern ).then( createComponents );
 			});
+
+			return Promise.all( promises );
+
+			function resolvePattern ( pattern ) {
+				return path.join( srcDir, pattern );
+			}
+
+			function createComponents ( matches ) {
+				var promises = matches.map( function ( componentPath ) {
+					var relativePath, outputPath, outputFolder;
+
+					relativePath = path.relative( srcDir, componentPath );
+
+					outputPath = path.join( destDir, self.destDir, relativePath.replace( /\.[a-zA-Z]+$/, '.js' ) );
+					outputFolder = path.join( outputPath, '..' );
+
+					return createComponent( componentPath ).then( writeComponent );
+
+					function writeComponent ( built ) {
+						return mkdirp( outputFolder ).then( function () {
+							return writeFile( outputPath, built );
+						});
+					}
+				});
+
+				return Promise.all( promises );
+			}
 		});
+
+		function createComponent ( componentPath ) {
+			return new Promise( function ( fulfil, reject ) {
+				fs.readFile( componentPath, function ( err, result ) {
+					var source, parsed, built;
+
+					if ( err ) throw err;
+
+					source = result.toString();
+					parsed = rcu.parse( source );
+					built = builders.amd( parsed );
+
+					fulfil( built );
+				});
+			});
+		}
 	}
 };
+
+builders.amd = function ( definition, imported ) {
+	var builtModule = '' +
+		'define([' +
+			definition.imports.map( getImportPath ).concat( '"require"', '"ractive"' ).join( ',\n' ) +
+		'], function(' +
+			definition.imports.map( getImportName ).concat( 'require', 'Ractive' ).join( ',\n' ) +
+		'){\n' +
+		'var __options__ = {\n' +
+		'	template: ' + tosource( definition.template ) + ',\n' +
+		( definition.css ?
+		'    css:' + JSON.stringify( new CleanCSS().minify( definition.css ) ) + ',\n' : '' ) +
+		( definition.imports.length ?
+		'    components:{' + definition.imports.map( getImportKeyValuePair ).join( ',\n' ) + '}\n' : '' ) +
+		'  },\n' +
+		'  component={};';
+
+	if ( definition.script ) {
+		builtModule += '\n' + definition.script + '\n' +
+			'  if ( typeof component.exports === "object" ) {\n    ' +
+				'for ( __prop__ in component.exports ) {\n      ' +
+					'if ( component.exports.hasOwnProperty(__prop__) ) {\n        ' +
+						'__options__[__prop__] = component.exports[__prop__];\n      ' +
+					'}\n    ' +
+				'}\n  ' +
+			'}\n\n  ';
+	}
+
+	builtModule += 'return Ractive.extend(__options__);\n});';
+	return builtModule;
+
+
+	function getImportPath ( imported ) {
+		return '\t"' + imported.href + '"';
+	}
+
+	function getImportName ( imported, i ) {
+		return '\t__import' + i + '__';
+	}
+
+	function getImportKeyValuePair ( imported, i ) {
+		return '\t' + stringify( imported.name ) + ': __import' + i + '__';
+	}
+
+	function stringify ( key ) {
+		if ( /^[a-zA-Z$_][a-zA-Z$_0-9]*$/test( key ) ) {
+			return key;
+		}
+
+		return JSON.stringify( key );
+	}
+};
+
+function globPromise( pattern ) {
+	return new Promise( function ( fulfil, reject ) {
+		glob( pattern, function ( err, result ) {
+			if ( err ) return reject( err );
+			fulfil( result );
+		});
+	});
+}
+
 
 module.exports = RactiveCompiler;
