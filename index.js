@@ -60,6 +60,12 @@ RactiveCompiler = function ( inputTree, options ) {
 	if ( !this.destDir ) {
 		throw new Error( 'broccoli-ractive: You must specify a destination directory' );
 	}
+
+	this.type = this.type || 'amd';
+
+	if ( !builders[ this.type ] ) {
+		throw new Error( 'Supported options for the "type" option are ' + Object.keys( builders ).join( ', ' ) );
+	}
 };
 
 RactiveCompiler.prototype = {
@@ -76,7 +82,7 @@ RactiveCompiler.prototype = {
 	},
 
 	cleanup: function () {
-		quickTemp.remove(this, 'ractive-compiler')
+		quickTemp.remove( this, 'ractive-compiler' );
 	},
 
 	write: function ( readTree, destDir ) {
@@ -119,11 +125,13 @@ RactiveCompiler.prototype = {
 
 		function createComponent ( componentPath ) {
 			return readFile( componentPath ).then( function ( result ) {
-				var source, parsed, built;
+				var source, parsed, builder, built;
 
 				source = result.toString();
 				parsed = rcu.parse( source );
-				built = builders.amd( parsed );
+
+				builder = builders[ self.type ];
+				built = builder( parsed );
 
 				return built;
 			});
@@ -131,13 +139,8 @@ RactiveCompiler.prototype = {
 	}
 };
 
-builders.amd = function ( definition, imported ) {
-	var builtModule = '' +
-		'define([' +
-			definition.imports.map( getImportPath ).concat( '"require"', '"ractive"' ).join( ',\n' ) +
-		'], function(' +
-			definition.imports.map( getImportName ).concat( 'require', 'Ractive' ).join( ',\n' ) +
-		'){\n' +
+createBody = function ( definition ) {
+	var body = '' +
 		'var __options__ = {\n' +
 		'	template: ' + tosource( definition.template ) + ',\n' +
 		( definition.css ?
@@ -146,10 +149,11 @@ builders.amd = function ( definition, imported ) {
 		'	components:{' + definition.imports.map( getImportKeyValuePair ).join( ',\n' ) + '}\n' : '' ) +
 		'},\n' +
 		'component={},\n' +
-		'__prop__;';
+		'__prop__,\n' +
+		'__export__;';
 
 	if ( definition.script ) {
-		builtModule += '\n' + definition.script + '\n' +
+		body += '\n' + definition.script + '\n' +
 			'  if ( typeof component.exports === "object" ) {\n    ' +
 				'for ( __prop__ in component.exports ) {\n      ' +
 					'if ( component.exports.hasOwnProperty(__prop__) ) {\n        ' +
@@ -159,17 +163,8 @@ builders.amd = function ( definition, imported ) {
 			'}\n\n  ';
 	}
 
-	builtModule += 'return Ractive.extend(__options__);\n});';
-	return builtModule;
-
-
-	function getImportPath ( imported ) {
-		return '\t"' + imported.href.replace( fileExtension, '' ) + '"';
-	}
-
-	function getImportName ( imported, i ) {
-		return '\t__import' + i + '__';
-	}
+	body += '__export__ = Ractive.extend( __options__ );\n';
+	return body;
 
 	function getImportKeyValuePair ( imported, i ) {
 		return '\t' + stringify( imported.name ) + ': __import' + i + '__';
@@ -182,6 +177,44 @@ builders.amd = function ( definition, imported ) {
 
 		return JSON.stringify( key );
 	}
+};
+
+builders.amd = function ( definition ) {
+	var builtModule = '' +
+		'define([' +
+			definition.imports.map( getImportPath ).concat( '"require"', '"ractive"' ).join( ',\n' ) +
+		'], function(' +
+			definition.imports.map( getImportName ).concat( 'require', 'Ractive' ).join( ',\n' ) +
+		'){\n' +
+
+		createBody( definition ) +
+		'return __export__;';
+
+	return builtModule;
+
+	function getImportPath ( imported ) {
+		return '\t"' + imported.href.replace( fileExtension, '' ) + '"';
+	}
+
+	function getImportName ( imported, i ) {
+		return '\t__import' + i + '__';
+	}
+};
+
+builders.cjs = function ( definition ) {
+	var requireStatements, builtModule;
+
+	requireStatements = definition.imports.map( function ( imported, i ) {
+		return '__import' + i + '__ = require(\'' + imported.href + '\')';
+	});
+
+	requireStatements.unshift( 'Ractive = require(\'ractive\')' );
+
+	builtModule = 'var ' + requireStatements.join( ',\n\t' ) + ';\n\n' +
+	createBody( definition ) +
+	'module.exports = __export__;';
+
+	return builtModule;
 };
 
 
