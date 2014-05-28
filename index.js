@@ -167,24 +167,33 @@ createBody = function ( definition ) {
 };
 
 builders.amd = function ( definition ) {
-	var builtModule = '' +
-		'define([' +
-			definition.imports.map( getImportPath ).concat( '"require"', '"ractive"' ).join( ',\n' ) +
-		'], function(' +
-			definition.imports.map( getImportName ).concat( 'require', 'Ractive' ).join( ',\n' ) +
+	var dependencies, builtModule;
+
+	dependencies = definition.imports.map( getImportPath ).concat( definition.modules );
+
+	builtModule = '' +
+		'define([\n\t' +
+			dependencies.map( quote ).concat( '"require"', '"ractive"' ).join( ',\n\t' ) + '\n' +
+		'], function(\n\t' +
+			dependencies.map( getDependencyName ).concat( 'require', 'Ractive' ).join( ',\n\t' ) + '\n' +
 		'){\n' +
 
 		createBody( definition ) +
-		'return __export__;';
+		'return __export__;\n' +
+		'});';
 
 	return builtModule;
 
 	function getImportPath ( imported ) {
-		return '\t"' + imported.href.replace( fileExtension, '' ) + '"';
+		return imported.href.replace( fileExtension, '' );
 	}
 
-	function getImportName ( imported, i ) {
-		return '\t__import' + i + '__';
+	function quote ( str ) {
+		return '"' + str + '"';
+	}
+
+	function getDependencyName ( imported, i ) {
+		return '__import' + i + '__';
 	}
 };
 
