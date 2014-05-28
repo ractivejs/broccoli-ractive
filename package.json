@@ -1,6 +1,6 @@
 {
   "name": "broccoli-ractive",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": "Rich-Harris",
   "main": "index.js",
   "license": "MIT",
