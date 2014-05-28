@@ -1,5 +1,5 @@
 var Promise = require( 'es6-promise' ).Promise,
-	quickTemp = require( 'quick-temp' ),
+	Writer = require( 'broccoli-writer' ),
 	Ractive = require( 'ractive' ),
 	rcu = require( 'rcu' ),
 	fs = require( 'fs' ),
@@ -15,9 +15,11 @@ var Promise = require( 'es6-promise' ).Promise,
 	readFile,
 	writeFile;
 
+module.exports = RactiveCompiler;
+
 rcu.init( Ractive );
 
-var RactiveCompiler, templates = {}, builders = {};
+var templates = {}, builders = {};
 
 promisify = (function ( slice ) {
 	return function ( fn, context ) {
@@ -42,7 +44,7 @@ mkdirp = promisify( require( 'mkdirp' ) );
 readFile = promisify( fs.readFile, fs );
 writeFile = promisify( fs.writeFile, fs );
 
-RactiveCompiler = function ( inputTree, options ) {
+function RactiveCompiler ( inputTree, options ) {
 	var key;
 
 	if ( !( this instanceof RactiveCompiler ) ) {
@@ -66,76 +68,61 @@ RactiveCompiler = function ( inputTree, options ) {
 	if ( !builders[ this.type ] ) {
 		throw new Error( 'Supported options for the "type" option are ' + Object.keys( builders ).join( ', ' ) );
 	}
-};
+}
 
-RactiveCompiler.prototype = {
-	constructor: RactiveCompiler,
+RactiveCompiler.prototype = Object.create( Writer.prototype );
+RactiveCompiler.prototype.constructor = RactiveCompiler;
 
-	read: function (readTree) {
-		var self = this;
+RactiveCompiler.prototype.write = function ( readTree, destDir ) {
+	var self = this;
 
-		quickTemp.makeOrRemake( this, 'ractiveCompiler' );
+	return readTree( self.inputTree ).then( function ( srcDir ) {
 
-		return this.write( readTree, this.ractiveCompiler ).then( function () {
-			return self.ractiveCompiler;
+		// glob all input file patterns, and create components from them
+		var promises = self.files.map( resolvePattern ).map( function ( pattern ) {
+			return glob( pattern ).then( createComponents );
 		});
-	},
 
-	cleanup: function () {
-		quickTemp.remove( this, 'ractive-compiler' );
-	},
+		return Promise.all( promises );
 
-	write: function ( readTree, destDir ) {
-		var self = this;
+		function resolvePattern ( pattern ) {
+			return path.join( srcDir, pattern );
+		}
 
-		return readTree( self.inputTree ).then( function ( srcDir ) {
+		function createComponents ( matches ) {
+			var promises = matches.map( function ( componentPath ) {
+				var relativePath, outputPath, outputFolder;
 
-			// glob all input file patterns, and create components from them
-			var promises = self.files.map( resolvePattern ).map( function ( pattern ) {
-				return glob( pattern ).then( createComponents );
+				relativePath = path.relative( srcDir, componentPath );
+
+				outputPath = path.join( destDir, self.destDir, relativePath.replace( fileExtension, '.js' ) );
+				outputFolder = path.join( outputPath, '..' );
+
+				return createComponent( componentPath ).then( writeComponent );
+
+				function writeComponent ( built ) {
+					return mkdirp( outputFolder ).then( function () {
+						return writeFile( outputPath, built );
+					});
+				}
 			});
 
 			return Promise.all( promises );
-
-			function resolvePattern ( pattern ) {
-				return path.join( srcDir, pattern );
-			}
-
-			function createComponents ( matches ) {
-				var promises = matches.map( function ( componentPath ) {
-					var relativePath, outputPath, outputFolder;
-
-					relativePath = path.relative( srcDir, componentPath );
-
-					outputPath = path.join( destDir, self.destDir, relativePath.replace( fileExtension, '.js' ) );
-					outputFolder = path.join( outputPath, '..' );
-
-					return createComponent( componentPath ).then( writeComponent );
-
-					function writeComponent ( built ) {
-						return mkdirp( outputFolder ).then( function () {
-							return writeFile( outputPath, built );
-						});
-					}
-				});
-
-				return Promise.all( promises );
-			}
-		});
-
-		function createComponent ( componentPath ) {
-			return readFile( componentPath ).then( function ( result ) {
-				var source, parsed, builder, built;
-
-				source = result.toString();
-				parsed = rcu.parse( source );
-
-				builder = builders[ self.type ];
-				built = builder( parsed );
-
-				return built;
-			});
 		}
+	});
+
+	function createComponent ( componentPath ) {
+		return readFile( componentPath ).then( function ( result ) {
+			var source, parsed, builder, built;
+
+			source = result.toString();
+			parsed = rcu.parse( source );
+
+			builder = builders[ self.type ];
+			built = builder( parsed );
+
+			return built;
+		});
 	}
 };
 

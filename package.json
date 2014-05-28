@@ -15,8 +15,8 @@
     "rcu": "^0.1.1",
     "ractive": "^0.4.0",
     "glob": "^4.0.0",
-    "quick-temp": "^0.1.2",
-    "clean-css": "^2.1.8"
+    "clean-css": "^2.1.8",
+    "broccoli-writer": "^0.1.1"
   },
   "devDependencies": {
     "broccoli": "^0.12.0",
