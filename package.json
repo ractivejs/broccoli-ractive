@@ -1,6 +1,6 @@
 {
   "name": "broccoli-ractive",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "author": "Rich-Harris",
   "main": "index.js",
   "license": "MIT",
@@ -12,8 +12,8 @@
     "es6-promise": "^1.0.0",
     "tosource": "^0.1.2",
     "mkdirp": "^0.5.0",
-    "rcu": "^0.1.1",
-    "ractive": "^0.4.0",
+    "rcu": "^0.2.0",
+    "ractive": "^0.5.4",
     "glob": "^4.0.0",
     "clean-css": "^2.1.8",
     "broccoli-writer": "^0.1.1"
