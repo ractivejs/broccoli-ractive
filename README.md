@@ -14,7 +14,7 @@ npm i
 broccoli serve
 ```
 
-Once you're up and running, navigate to http://localhost:4200. You should see a clock - the one defined in the [clock.html](https://github.com/ractivejs/broccoli-ractive/blob/master/example/components/clock.html) component file.
+Once you're up and running, navigate to [localhost:4200](http://localhost:4200). You should see a clock - the one defined in the [clock.html](https://github.com/ractivejs/broccoli-ractive/blob/master/example/components/clock.html) component file.
 
 For the demo, we're converting to an AMD module, but you can also generate node.js modules (e.g. for use with the [broccoli-browserify](https://github.com/gingerhendrix/broccoli-browserify) plugin) or ES6 modules.
 
@@ -43,7 +43,7 @@ The `inputTree` option can be a string, e.g. `path/to/ractive_components`. The s
 
 * **destDir** - self-explanatory!
 * files - optional, defaults to `[**/*.html]` (i.e. all HTML files in the input tree). An array of file [minimatch patterns](https://github.com/isaacs/minimatch) to match.
-* type - optional, defaults to `amd`. Can be either `amd`, `cjs` (node.js modules) or `es6`.
+* type - optional, defaults to `amd`. The type of JavaScript module to convert to. Can be either `amd`, `cjs` (node.js modules) or `es6`.
 
 
 ## License
