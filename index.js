@@ -59,6 +59,11 @@ function RactiveCompiler ( inputTree, options ) {
 		}
 	}
 
+	if ( !this.files ) {
+		// default to compiling all HTML files in the input tree
+		this.files = [ '**/*.html' ];
+	}
+
 	if ( !this.destDir ) {
 		throw new Error( 'broccoli-ractive: You must specify a destination directory' );
 	}

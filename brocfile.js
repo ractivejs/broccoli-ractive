@@ -9,7 +9,6 @@ var staticFiles = pick( 'example', {
 });
 
 var components = compileRactive( 'example/components', {
-	files: [ '**/*.html' ],
 	destDir: 'components'
 });
 
