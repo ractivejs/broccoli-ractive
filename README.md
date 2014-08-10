@@ -4,7 +4,7 @@ This [broccoli](https://github.com/broccolijs/broccoli) plugin compiles Ractive 
 
 To try it out:
 
-```shell
+```bash
 # Clone this repo and set it up
 git clone https://github.com/ractivejs/broccoli-ractive.git
 cd broccoli-ractive
@@ -22,7 +22,7 @@ For the demo, we're converting to an AMD module, but you can also generate node.
 
 ## Installation
 
-```shell
+```bash
 npm i -D broccoli-ractive    # `i` is short for `install`, `-D` means `--save-dev`
 ```
 
